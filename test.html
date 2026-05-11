@@ -635,72 +635,68 @@ function toast(msg) {
 }
 
 // ==========================================
-// 2-1. 통신 유틸리티 (CORS 에러 & 프록시 차단 완벽 해결)
+// 2-1. 하이브리드 통신 유틸리티 (JSONP 완전 폐기, Fetch+Proxy 폴백 엔진)
 // ==========================================
-// JSONP 방식: 브라우저의 CORS 정책을 합법적으로 우회하며, V-World의 프록시 차단 방화벽에도 걸리지 않습니다.
-function fetchJSONP(url) {
-  return new Promise((resolve, reject) => {
-    const callbackName = 'vworld_cb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+async function fetchVWorld(apiUrl) {
+  // 1. 직접 통신 (깃허브 페이지에 배포 시 정상 동작)
+  try {
+    const res = await fetch(apiUrl);
+    if (res.ok) {
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        return await res.json();
+      } else {
+        const text = await res.text();
+        return parseVWorldResponse(text);
+      }
+    }
+  } catch (err) {
+    console.warn("직접 통신 실패 (CORS 또는 로컬 환경). 프록시 통신을 시도합니다.", err);
+  }
+
+  // 2. 1순위 프록시: api.codetabs.com (가장 안정적)
+  try {
+    const proxyUrl1 = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(apiUrl);
+    const res1 = await fetch(proxyUrl1);
+    if (res1.ok) {
+      const text1 = await res1.text();
+      return parseVWorldResponse(text1);
+    }
+  } catch (err1) {
+    console.warn("1순위 프록시 실패. 2순위 프록시를 시도합니다.", err1);
+  }
+
+  // 3. 2순위 프록시: allorigins (/get 엔드포인트 사용, JSON 반환)
+  try {
+    const proxyUrl2 = 'https://api.allorigins.win/get?url=' + encodeURIComponent(apiUrl);
+    const res2 = await fetch(proxyUrl2);
+    if (!res2.ok) throw new Error('Proxy2 HTTP error');
     
-    // URL에 format=json이 있다면 jsonp로 변경하고 콜백 함수명 주입
-    let targetUrl = url.replace(/format=json/gi, 'format=jsonp');
-    if (!targetUrl.includes('format=jsonp')) targetUrl += '&format=jsonp';
-    targetUrl += `&callback=${callbackName}`;
-
-    const script = document.createElement('script');
+    const data2 = await res2.json();
+    if (!data2.contents) throw new Error('Proxy2 Contents Empty');
     
-    // 타임아웃 처리 (6초)
-    const timeoutId = setTimeout(() => {
-      cleanup();
-      reject(new Error('JSONP Timeout - 서버 응답 시간 초과'));
-    }, 6000);
-
-    const cleanup = () => {
-      clearTimeout(timeoutId);
-      if (script.parentNode) script.parentNode.removeChild(script);
-      delete window[callbackName];
-    };
-
-    window[callbackName] = function(data) {
-      cleanup();
-      resolve(data);
-    };
-
-    script.onerror = function() {
-      cleanup();
-      reject(new Error('JSONP 스크립트 로드 차단됨 (보안 정책 또는 네트워크 오류)'));
-    };
-
-    script.src = targetUrl;
-    document.body.appendChild(script);
-  });
+    return parseVWorldResponse(data2.contents);
+  } catch (err2) {
+    throw new Error('모든 통신 우회 시도가 실패했습니다. 네트워크를 확인해주세요.');
+  }
 }
 
-// 하이브리드 데이터 패칭: JSONP 최우선 시도 후, 실패 시 다중 프록시를 순차적으로 우회 적용합니다.
-async function fetchVWorldData(url) {
+// 브이월드 응답 데이터 파싱 유틸리티 (V-World 특유의 XML 에러 응답 방어)
+function parseVWorldResponse(text) {
   try {
-    // 1. JSONP 최우선 시도: 브라우저 CORS 제약 완전 우회 & V-World 프록시 IP 차단 회피
-    return await fetchJSONP(url);
-  } catch (err1) {
-    console.warn('JSONP 방식 실패. CORS 프록시 서버 우회 통신을 시도합니다.', err1);
-    try {
-      // 2. corsproxy.io 프록시 우회
-      const cleanUrl = url.replace(/format=jsonp/gi, 'format=json');
-      const proxy1 = 'https://corsproxy.io/?' + encodeURIComponent(cleanUrl);
-      const res1 = await fetch(proxy1);
-      if (!res1.ok) throw new Error(`Proxy1 HTTP Error: ${res1.status}`);
-      return await res1.json();
-    } catch (err2) {
-      console.warn('1차 프록시 실패. 2차 프록시(allorigins)를 시도합니다.', err2);
-      // 3. api.allorigins.win/get 프록시 우회 (/raw 타임아웃 회피)
-      const cleanUrl = url.replace(/format=jsonp/gi, 'format=json');
-      const proxy2 = 'https://api.allorigins.win/get?url=' + encodeURIComponent(cleanUrl);
-      const res2 = await fetch(proxy2);
-      if (!res2.ok) throw new Error(`Proxy2 HTTP Error: ${res2.status}`);
-      const data2 = await res2.json();
-      if (!data2.contents) throw new Error('Proxy2 Contents Empty');
-      return JSON.parse(data2.contents);
+    return JSON.parse(text); 
+  } catch (e) {
+    // 키/도메인 불일치 시 XML 형태로 <errMsg>를 뱉는 경우 파싱
+    if (text.includes('<errMsg>')) {
+      const match = text.match(/<errMsg>(.*?)<\/errMsg>/);
+      throw new Error(match ? match[1] : '브이월드 인증키 또는 도메인 설정 오류입니다.');
     }
+    // 일반적인 토지특성 API(WFS)의 XML 에러 파싱
+    if (text.includes('<error>')) {
+      const match = text.match(/<text>(.*?)<\/text>/);
+      throw new Error(match ? match[1] : '브이월드 API 요청 오류입니다.');
+    }
+    throw new Error('서버로부터 올바른 데이터 형식을 받지 못했습니다.');
   }
 }
 
@@ -823,7 +819,7 @@ function buildPNU(item) {
   if (searchHistory.length > 5) searchHistory.pop();
   renderHistory();
 
-  // 토지 정보 조회 (하이브리드 통신 적용)
+  // 토지 정보 조회 시작
   fetchLandInfo(pnu);
   fetchLandPrice(pnu);
 }
@@ -903,7 +899,7 @@ async function fetchLandInfo(pnu) {
   const apiUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_LANDINFO&key=${VWORLD_API_KEY}&domain=${VWORLD_DOMAIN}&attrFilter=pnu:=:${pnu}&format=json`;
 
   try {
-    const data = await fetchVWorldData(apiUrl); // ⬅️ 수정: 하이브리드 통신 함수 적용
+    const data = await fetchVWorld(apiUrl); // ⬅️ 통합 Fetch 엔진 사용
     
     if (data && data.response && data.response.status === 'OK') {
       const features = data.response.result.featureCollection.features;
@@ -920,7 +916,7 @@ async function fetchLandInfo(pnu) {
       renderLandError("알 수 없는 응답 형식입니다.");
     }
   } catch (err) {
-    renderLandError(`[통신 차단됨] 데이터를 불러올 수 없습니다.<br><small>${err.message}</small>`);
+    renderLandError(`[통신 에러] 데이터를 불러올 수 없습니다.<br><small>${err.message}</small>`);
   }
 }
 
@@ -981,7 +977,7 @@ function renderLandError(msg) {
 }
 
 // ==========================================
-// 6-2. 개별공시지가 조회 (CORS 오류 해결)
+// 6-2. 개별공시지가 조회
 // ==========================================
 async function fetchLandPrice(pnu) {
   const wrap = document.getElementById('landPriceWrap');
@@ -998,7 +994,7 @@ async function fetchLandPrice(pnu) {
   const apiUrl = "https://api.vworld.kr/ned/data/getIndvdLandPriceAttr" + parameter;
 
   try {
-    const data = await fetchVWorldData(apiUrl); // ⬅️ 수정: 하이브리드 통신 함수 적용
+    const data = await fetchVWorld(apiUrl); // ⬅️ 통합 Fetch 엔진 사용
 
     if (data.errCd && data.errCd !== "0") {
         renderLandPriceError(`[API 에러] 에러코드 ${data.errCd}: ${data.errMsg}`);
