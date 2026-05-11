@@ -635,69 +635,67 @@ function toast(msg) {
 }
 
 // ==========================================
-// 2-1. 하이브리드 통신 유틸리티 (JSONP 완전 폐기, Fetch+Proxy 폴백 엔진)
+// 2-1. 하이브리드 통신 유틸리티 (견고한 Proxy 폴백 엔진)
 // ==========================================
 async function fetchVWorld(apiUrl) {
-  // 1. 직접 통신 (깃허브 페이지에 배포 시 정상 동작)
+  // 안정성이 검증된 다중 프록시 서버 목록 구성
+  const proxies = [
+    'https://corsproxy.io/?' + encodeURIComponent(apiUrl),
+    'https://thingproxy.freeboard.io/fetch/' + apiUrl,
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl)
+  ];
+
+  for (const proxyUrl of proxies) {
+    try {
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error(`Proxy HTTP Error: ${res.status}`);
+
+      const text = await res.text();
+      
+      // 클라우드플레어 차단 등 프록시 자체 에러페이지(HTML) 필터링
+      if (text.toLowerCase().includes('cloudflare') && text.includes('<html')) {
+        throw new Error('Proxy blocked by Cloudflare firewall');
+      }
+
+      // V-World API의 정상적인 요청 거절(XML 에러 메시지) 방어
+      // (이 경우 프록시 통신 자체는 성공한 것이므로, 무의미한 다른 프록시 시도를 즉시 중단합니다.)
+      if (text.includes('<errMsg>')) {
+        const match = text.match(/<errMsg>(.*?)<\/errMsg>/);
+        throw { isVWorldError: true, message: match ? match[1] : '인증키 또는 도메인 오류' };
+      }
+      if (text.includes('<error>')) {
+        const match = text.match(/<text>(.*?)<\/text>/);
+        throw { isVWorldError: true, message: match ? match[1] : 'API 요청 오류' };
+      }
+
+      // 정상 JSON 파싱 시도
+      try {
+        return JSON.parse(text);
+      } catch (jsonErr) {
+        throw new Error('프록시에서 올바르지 않은 응답(HTML 등)을 반환했습니다.');
+      }
+    } catch (e) {
+      // 브이월드 서버의 명시적인 에러라면 루프를 멈추고 화면으로 에러를 던짐
+      if (e.isVWorldError) throw new Error(`[브이월드 서버 차단] ${e.message}`);
+      
+      console.warn(`프록시 우회 시도 실패 (${proxyUrl}):`, e.message);
+    }
+  }
+
+  // 프록시 3개가 모두 실패한 경우 마지막으로 브라우저 직접 통신 시도
   try {
+    console.log('모든 프록시 실패. 직접 통신을 시도합니다.');
     const res = await fetch(apiUrl);
     if (res.ok) {
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        return await res.json();
-      } else {
-        const text = await res.text();
-        return parseVWorldResponse(text);
-      }
+      const text = await res.text();
+      if (text.includes('<errMsg>')) throw new Error('도메인 오류');
+      return JSON.parse(text);
     }
-  } catch (err) {
-    console.warn("직접 통신 실패 (CORS 또는 로컬 환경). 프록시 통신을 시도합니다.", err);
-  }
-
-  // 2. 1순위 프록시: api.codetabs.com (가장 안정적)
-  try {
-    const proxyUrl1 = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(apiUrl);
-    const res1 = await fetch(proxyUrl1);
-    if (res1.ok) {
-      const text1 = await res1.text();
-      return parseVWorldResponse(text1);
-    }
-  } catch (err1) {
-    console.warn("1순위 프록시 실패. 2순위 프록시를 시도합니다.", err1);
-  }
-
-  // 3. 2순위 프록시: allorigins (/get 엔드포인트 사용, JSON 반환)
-  try {
-    const proxyUrl2 = 'https://api.allorigins.win/get?url=' + encodeURIComponent(apiUrl);
-    const res2 = await fetch(proxyUrl2);
-    if (!res2.ok) throw new Error('Proxy2 HTTP error');
-    
-    const data2 = await res2.json();
-    if (!data2.contents) throw new Error('Proxy2 Contents Empty');
-    
-    return parseVWorldResponse(data2.contents);
-  } catch (err2) {
-    throw new Error('모든 통신 우회 시도가 실패했습니다. 네트워크를 확인해주세요.');
-  }
-}
-
-// 브이월드 응답 데이터 파싱 유틸리티 (V-World 특유의 XML 에러 응답 방어)
-function parseVWorldResponse(text) {
-  try {
-    return JSON.parse(text); 
   } catch (e) {
-    // 키/도메인 불일치 시 XML 형태로 <errMsg>를 뱉는 경우 파싱
-    if (text.includes('<errMsg>')) {
-      const match = text.match(/<errMsg>(.*?)<\/errMsg>/);
-      throw new Error(match ? match[1] : '브이월드 인증키 또는 도메인 설정 오류입니다.');
-    }
-    // 일반적인 토지특성 API(WFS)의 XML 에러 파싱
-    if (text.includes('<error>')) {
-      const match = text.match(/<text>(.*?)<\/text>/);
-      throw new Error(match ? match[1] : '브이월드 API 요청 오류입니다.');
-    }
-    throw new Error('서버로부터 올바른 데이터 형식을 받지 못했습니다.');
+    console.warn('직접 통신도 브라우저 보안에 의해 차단되었습니다.', e);
   }
+
+  throw new Error('강력한 브라우저 보안(CORS) 정책 및 프록시 차단에 의해 통신에 실패했습니다.');
 }
 
 // ==========================================
@@ -990,13 +988,13 @@ async function fetchLandPrice(pnu) {
   parameter += "&domain=" + encodeURIComponent(VWORLD_DOMAIN); 
   parameter += "&pnu=" + encodeURIComponent(pnu); 
   parameter += "&format=json"; 
-  parameter += "&numOfRows=100"; // ⬅️ 추가: 과거부터 현재까지 데이터를 충분히 확보하기 위해 100건 요청
+  parameter += "&numOfRows=100"; 
   parameter += "&pageNo=1";
   
   const apiUrl = "https://api.vworld.kr/ned/data/getIndvdLandPriceAttr" + parameter;
 
   try {
-    const data = await fetchVWorld(apiUrl); // 통합 Fetch 엔진 사용
+    const data = await fetchVWorld(apiUrl); // ⬅️ 통합 Fetch 엔진 사용
 
     if (data.errCd && data.errCd !== "0") {
         renderLandPriceError(`[API 에러] 에러코드 ${data.errCd}: ${data.errMsg}`);
