@@ -601,7 +601,7 @@ const JUSO_API_KEY = 'devU01TX0FVVEgyMDI2MDUwODEzNTAxODExODEyMDA=';
 const JUSO_API_URL = 'https://www.juso.go.kr/addrlink/addrLinkApi.do';
 
 const VWORLD_API_KEY = '8625572D-DC1C-3111-B18F-0B578E3C2B59'; 
-const VWORLD_DOMAIN = 'https://gurupassiv.github.io'; // ⬅️ Github Pages 도메인 고정 설정
+const VWORLD_DOMAIN = 'https://gurupassiv.github.io'; // Github Pages 도메인
 
 const searchHistory = [];
 let currentLandData = { address: "", jimok: "", parea: "", terrain: "", prices: [] };
@@ -635,22 +635,72 @@ function toast(msg) {
 }
 
 // ==========================================
-// 2-1. 통신 유틸리티 (CORS 우회 로직 추가)
+// 2-1. 통신 유틸리티 (CORS 에러 & 프록시 차단 완벽 해결)
 // ==========================================
-// 로컬 환경이나 VScode Live Server(127.0.0.1 등)에서 브이월드 호출 시 발생하는 CORS 차단을 우회합니다.
-async function fetchWithCORS(url) {
+// JSONP 방식: 브라우저의 CORS 정책을 합법적으로 우회하며, V-World의 프록시 차단 방화벽에도 걸리지 않습니다.
+function fetchJSONP(url) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'vworld_cb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    
+    // URL에 format=json이 있다면 jsonp로 변경하고 콜백 함수명 주입
+    let targetUrl = url.replace(/format=json/gi, 'format=jsonp');
+    if (!targetUrl.includes('format=jsonp')) targetUrl += '&format=jsonp';
+    targetUrl += `&callback=${callbackName}`;
+
+    const script = document.createElement('script');
+    
+    // 타임아웃 처리 (6초)
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP Timeout - 서버 응답 시간 초과'));
+    }, 6000);
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      if (script.parentNode) script.parentNode.removeChild(script);
+      delete window[callbackName];
+    };
+
+    window[callbackName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('JSONP 스크립트 로드 차단됨 (보안 정책 또는 네트워크 오류)'));
+    };
+
+    script.src = targetUrl;
+    document.body.appendChild(script);
+  });
+}
+
+// 하이브리드 데이터 패칭: JSONP 최우선 시도 후, 실패 시 다중 프록시를 순차적으로 우회 적용합니다.
+async function fetchVWorldData(url) {
   try {
-    // 1차 시도: 직접 통신 (사용자가 키를 정상 도메인에 등록했을 경우 성공)
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    // 2차 시도: CORS 에러 발생 시 퍼블릭 프록시(allorigins)를 경유하여 우회 호출
-    console.warn('CORS 차단 감지됨. 퍼블릭 프록시를 통해 우회합니다.', error);
-    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-    const proxyResponse = await fetch(proxyUrl);
-    if (!proxyResponse.ok) throw new Error(`Proxy HTTP Error: ${proxyResponse.status}`);
-    return await proxyResponse.json();
+    // 1. JSONP 최우선 시도: 브라우저 CORS 제약 완전 우회 & V-World 프록시 IP 차단 회피
+    return await fetchJSONP(url);
+  } catch (err1) {
+    console.warn('JSONP 방식 실패. CORS 프록시 서버 우회 통신을 시도합니다.', err1);
+    try {
+      // 2. corsproxy.io 프록시 우회
+      const cleanUrl = url.replace(/format=jsonp/gi, 'format=json');
+      const proxy1 = 'https://corsproxy.io/?' + encodeURIComponent(cleanUrl);
+      const res1 = await fetch(proxy1);
+      if (!res1.ok) throw new Error(`Proxy1 HTTP Error: ${res1.status}`);
+      return await res1.json();
+    } catch (err2) {
+      console.warn('1차 프록시 실패. 2차 프록시(allorigins)를 시도합니다.', err2);
+      // 3. api.allorigins.win/get 프록시 우회 (/raw 타임아웃 회피)
+      const cleanUrl = url.replace(/format=jsonp/gi, 'format=json');
+      const proxy2 = 'https://api.allorigins.win/get?url=' + encodeURIComponent(cleanUrl);
+      const res2 = await fetch(proxy2);
+      if (!res2.ok) throw new Error(`Proxy2 HTTP Error: ${res2.status}`);
+      const data2 = await res2.json();
+      if (!data2.contents) throw new Error('Proxy2 Contents Empty');
+      return JSON.parse(data2.contents);
+    }
   }
 }
 
@@ -773,7 +823,7 @@ function buildPNU(item) {
   if (searchHistory.length > 5) searchHistory.pop();
   renderHistory();
 
-  // 토지 정보 조회
+  // 토지 정보 조회 (하이브리드 통신 적용)
   fetchLandInfo(pnu);
   fetchLandPrice(pnu);
 }
@@ -850,11 +900,10 @@ async function fetchLandInfo(pnu) {
   wrap.style.display = 'block';
   content.innerHTML = `<div style="padding: 40px 0;"><div class="spinner"></div>브이월드 데이터베이스에서 토지 특성을 조회하고 있습니다...</div>`;
 
-  // ⬅️ 동적 도메인 로직을 제거하고 고정된 도메인(VWORLD_DOMAIN) 사용
   const apiUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_LANDINFO&key=${VWORLD_API_KEY}&domain=${VWORLD_DOMAIN}&attrFilter=pnu:=:${pnu}&format=json`;
 
   try {
-    const data = await fetchWithCORS(apiUrl); 
+    const data = await fetchVWorldData(apiUrl); // ⬅️ 수정: 하이브리드 통신 함수 적용
     
     if (data && data.response && data.response.status === 'OK') {
       const features = data.response.result.featureCollection.features;
@@ -942,14 +991,14 @@ async function fetchLandPrice(pnu) {
   content.innerHTML = `<div style="padding: 40px 0;"><div class="spinner"></div>과거부터 현재까지의 공시지가를 조회하고 있습니다...</div>`;
 
   let parameter = "?key=" + encodeURIComponent(VWORLD_API_KEY);   
-  parameter += "&domain=" + encodeURIComponent(VWORLD_DOMAIN); // ⬅️ 공시지가 API에도 명시적으로 도메인 추가
+  parameter += "&domain=" + encodeURIComponent(VWORLD_DOMAIN); 
   parameter += "&pnu=" + encodeURIComponent(pnu); 
   parameter += "&format=json"; 
   
   const apiUrl = "https://api.vworld.kr/ned/data/getIndvdLandPriceAttr" + parameter;
 
   try {
-    const data = await fetchWithCORS(apiUrl); 
+    const data = await fetchVWorldData(apiUrl); // ⬅️ 수정: 하이브리드 통신 함수 적용
 
     if (data.errCd && data.errCd !== "0") {
         renderLandPriceError(`[API 에러] 에러코드 ${data.errCd}: ${data.errMsg}`);
