@@ -984,17 +984,19 @@ async function fetchLandPrice(pnu) {
   const content = document.getElementById('landPriceContent');
   
   wrap.style.display = 'block';
-  content.innerHTML = `<div style="padding: 40px 0;"><div class="spinner"></div>과거부터 현재까지의 공시지가를 조회하고 있습니다...</div>`;
+  content.innerHTML = `<div style="padding: 40px 0;"><div class="spinner"></div>과거부터 최신까지의 공시지가를 조회하고 있습니다...</div>`;
 
   let parameter = "?key=" + encodeURIComponent(VWORLD_API_KEY);   
   parameter += "&domain=" + encodeURIComponent(VWORLD_DOMAIN); 
   parameter += "&pnu=" + encodeURIComponent(pnu); 
   parameter += "&format=json"; 
+  parameter += "&numOfRows=100"; // ⬅️ 추가: 과거부터 현재까지 데이터를 충분히 확보하기 위해 100건 요청
+  parameter += "&pageNo=1";
   
   const apiUrl = "https://api.vworld.kr/ned/data/getIndvdLandPriceAttr" + parameter;
 
   try {
-    const data = await fetchVWorld(apiUrl); // ⬅️ 통합 Fetch 엔진 사용
+    const data = await fetchVWorld(apiUrl); // 통합 Fetch 엔진 사용
 
     if (data.errCd && data.errCd !== "0") {
         renderLandPriceError(`[API 에러] 에러코드 ${data.errCd}: ${data.errMsg}`);
@@ -1021,11 +1023,16 @@ async function fetchLandPrice(pnu) {
 function renderLandPrice(fields) {
   const formatNumber = (num) => num ? Number(num).toLocaleString('ko-KR') : '-';
   
+  // 전체 데이터를 최신 연도 기준으로 먼저 정렬합니다.
   fields.sort((a, b) => Number(b.stdrYear) - Number(a.stdrYear));
   
-  currentLandData.prices = fields.map(f => `${f.stdrYear}년 ${f.pblntfPclnd}원/㎡`);
+  // 정렬된 전체 데이터에서 최신 5개년 치만 잘라냅니다.
+  const recentFields = fields.slice(0, 5);
+  
+  // AI 연동을 위해 잘라낸 5개년 치 데이터를 저장합니다.
+  currentLandData.prices = recentFields.map(f => `${f.stdrYear}년 ${f.pblntfPclnd}원/㎡`);
 
-  const listHtml = fields.map(item => `
+  const listHtml = recentFields.map(item => `
     <div class="price-item">
       <div class="price-year-wrap">
         <div class="price-year">${item.stdrYear}년 ${item.stdrMt}월 기준</div>
