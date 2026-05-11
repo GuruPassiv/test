@@ -601,7 +601,7 @@ const JUSO_API_KEY = 'devU01TX0FVVEgyMDI2MDUwODEzNTAxODExODEyMDA=';
 const JUSO_API_URL = 'https://www.juso.go.kr/addrlink/addrLinkApi.do';
 
 const VWORLD_API_KEY = '8625572D-DC1C-3111-B18F-0B578E3C2B59'; 
-const VWORLD_DOMAIN = 'https://gurupassiv.github.io'; // Github Pages 도메인
+const VWORLD_DOMAIN = 'https://gurupassiv.github.io'; // Github Pages 도메인 고정
 
 const searchHistory = [];
 let currentLandData = { address: "", jimok: "", parea: "", terrain: "", prices: [] };
@@ -632,70 +632,6 @@ function toast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
-}
-
-// ==========================================
-// 2-1. 하이브리드 통신 유틸리티 (견고한 Proxy 폴백 엔진)
-// ==========================================
-async function fetchVWorld(apiUrl) {
-  // 안정성이 검증된 다중 프록시 서버 목록 구성
-  const proxies = [
-    'https://corsproxy.io/?' + encodeURIComponent(apiUrl),
-    'https://thingproxy.freeboard.io/fetch/' + apiUrl,
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl)
-  ];
-
-  for (const proxyUrl of proxies) {
-    try {
-      const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error(`Proxy HTTP Error: ${res.status}`);
-
-      const text = await res.text();
-      
-      // 클라우드플레어 차단 등 프록시 자체 에러페이지(HTML) 필터링
-      if (text.toLowerCase().includes('cloudflare') && text.includes('<html')) {
-        throw new Error('Proxy blocked by Cloudflare firewall');
-      }
-
-      // V-World API의 정상적인 요청 거절(XML 에러 메시지) 방어
-      // (이 경우 프록시 통신 자체는 성공한 것이므로, 무의미한 다른 프록시 시도를 즉시 중단합니다.)
-      if (text.includes('<errMsg>')) {
-        const match = text.match(/<errMsg>(.*?)<\/errMsg>/);
-        throw { isVWorldError: true, message: match ? match[1] : '인증키 또는 도메인 오류' };
-      }
-      if (text.includes('<error>')) {
-        const match = text.match(/<text>(.*?)<\/text>/);
-        throw { isVWorldError: true, message: match ? match[1] : 'API 요청 오류' };
-      }
-
-      // 정상 JSON 파싱 시도
-      try {
-        return JSON.parse(text);
-      } catch (jsonErr) {
-        throw new Error('프록시에서 올바르지 않은 응답(HTML 등)을 반환했습니다.');
-      }
-    } catch (e) {
-      // 브이월드 서버의 명시적인 에러라면 루프를 멈추고 화면으로 에러를 던짐
-      if (e.isVWorldError) throw new Error(`[브이월드 서버 차단] ${e.message}`);
-      
-      console.warn(`프록시 우회 시도 실패 (${proxyUrl}):`, e.message);
-    }
-  }
-
-  // 프록시 3개가 모두 실패한 경우 마지막으로 브라우저 직접 통신 시도
-  try {
-    console.log('모든 프록시 실패. 직접 통신을 시도합니다.');
-    const res = await fetch(apiUrl);
-    if (res.ok) {
-      const text = await res.text();
-      if (text.includes('<errMsg>')) throw new Error('도메인 오류');
-      return JSON.parse(text);
-    }
-  } catch (e) {
-    console.warn('직접 통신도 브라우저 보안에 의해 차단되었습니다.', e);
-  }
-
-  throw new Error('강력한 브라우저 보안(CORS) 정책 및 프록시 차단에 의해 통신에 실패했습니다.');
 }
 
 // ==========================================
@@ -817,7 +753,7 @@ function buildPNU(item) {
   if (searchHistory.length > 5) searchHistory.pop();
   renderHistory();
 
-  // 토지 정보 조회 시작
+  // 토지 정보 조회 시작 (분리된 엔진 적용)
   fetchLandInfo(pnu);
   fetchLandPrice(pnu);
 }
@@ -885,19 +821,23 @@ function copyPNU() {
 }
 
 // ==========================================
-// 5. 브이월드 토지특성정보 연동
+// 5. 브이월드 토지특성정보 연동 (가장 안전한 순수 JSONP 방식)
 // ==========================================
-async function fetchLandInfo(pnu) {
+// 이 방식은 브라우저의 CORS 및 프록시 차단을 100% 무시하고 가장 안정적으로 브이월드 서버와 직통신합니다.
+function fetchLandInfo(pnu) {
   const wrap = document.getElementById('landInfoWrap');
   const content = document.getElementById('landInfoContent');
   
   wrap.style.display = 'block';
   content.innerHTML = `<div style="padding: 40px 0;"><div class="spinner"></div>브이월드 데이터베이스에서 토지 특성을 조회하고 있습니다...</div>`;
 
-  const apiUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_LANDINFO&key=${VWORLD_API_KEY}&domain=${VWORLD_DOMAIN}&attrFilter=pnu:=:${pnu}&format=json`;
-
-  try {
-    const data = await fetchVWorld(apiUrl); // ⬅️ 통합 Fetch 엔진 사용
+  const callbackName = 'vworld_cb_info_' + Date.now();
+  
+  window[callbackName] = function(data) {
+    // 요청이 성공적으로 돌아오면 청소 진행
+    delete window[callbackName];
+    const scriptEl = document.getElementById('jsonp_info');
+    if(scriptEl) scriptEl.remove();
     
     if (data && data.response && data.response.status === 'OK') {
       const features = data.response.result.featureCollection.features;
@@ -908,14 +848,24 @@ async function fetchLandInfo(pnu) {
       }
     } 
     else if (data && data.response && data.response.error) {
-      renderLandError(`[API 차단됨] ${data.response.error.text}`);
-    } 
-    else {
+      renderLandError(`[API 권한 차단됨] ${data.response.error.text} (인증키 도메인 설정을 확인하세요)`);
+    } else {
       renderLandError("알 수 없는 응답 형식입니다.");
     }
-  } catch (err) {
-    renderLandError(`[통신 에러] 데이터를 불러올 수 없습니다.<br><small>${err.message}</small>`);
-  }
+  };
+
+  const script = document.createElement('script');
+  script.id = 'jsonp_info';
+  // VWorld Data API는 format=jsonp를 완벽하게 지원합니다.
+  script.src = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_LANDINFO&key=${VWORLD_API_KEY}&domain=${VWORLD_DOMAIN}&attrFilter=pnu:=:${pnu}&format=jsonp&callback=${callbackName}`;
+  
+  script.onerror = function() {
+    delete window[callbackName];
+    script.remove();
+    renderLandError("[통신 차단] 브이월드 서버에서 스크립트 실행을 거부했습니다. 등록하신 도메인과 현재 주소가 일치하는지 확인하세요.");
+  };
+  
+  document.body.appendChild(script);
 }
 
 // ==========================================
@@ -975,7 +925,7 @@ function renderLandError(msg) {
 }
 
 // ==========================================
-// 6-2. 개별공시지가 조회
+// 6-2. 개별공시지가 조회 (이중 인코딩 버그 수정 + AllOrigins 프록시 최적화)
 // ==========================================
 async function fetchLandPrice(pnu) {
   const wrap = document.getElementById('landPriceWrap');
@@ -984,25 +934,39 @@ async function fetchLandPrice(pnu) {
   wrap.style.display = 'block';
   content.innerHTML = `<div style="padding: 40px 0;"><div class="spinner"></div>과거부터 최신까지의 공시지가를 조회하고 있습니다...</div>`;
 
-  let parameter = "?key=" + encodeURIComponent(VWORLD_API_KEY);   
-  parameter += "&domain=" + encodeURIComponent(VWORLD_DOMAIN); 
-  parameter += "&pnu=" + encodeURIComponent(pnu); 
-  parameter += "&format=json"; 
-  parameter += "&numOfRows=100"; 
-  parameter += "&pageNo=1";
-  
-  const apiUrl = "https://api.vworld.kr/ned/data/getIndvdLandPriceAttr" + parameter;
+  // ⚠️ 중요 버그 수정: 여기서 encodeURIComponent를 개별 파라미터에 걸면, 나중에 proxy URL을 만들 때
+  // 이중 인코딩(%253A)이 발생하여 브이월드가 도메인을 인식하지 못하고 XML 에러를 반환합니다.
+  // 따라서 원본 URL 문자열을 그대로 하나로 합칩니다.
+  const apiUrl = `https://api.vworld.kr/ned/data/getIndvdLandPriceAttr?key=${VWORLD_API_KEY}&domain=${VWORLD_DOMAIN}&pnu=${pnu}&format=json&numOfRows=100&pageNo=1`;
 
   try {
-    const data = await fetchVWorld(apiUrl); // ⬅️ 통합 Fetch 엔진 사용
+    // 브이월드 NED API는 CORS를 허용하지 않으므로 가장 신뢰할 수 있는 AllOrigins 프록시를 통해 우회합니다.
+    // 이때 비로소 전체 완성된 URL을 딱 한 번만 인코딩하여 프록시 서버에 넘깁니다.
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+    
+    const res = await fetch(proxyUrl);
+    if (!res.ok) throw new Error(`프록시 서버 응답 오류 (${res.status})`);
+    
+    const data = await res.json();
+    if (!data.contents) throw new Error("프록시 응답 본문이 비어있습니다.");
 
-    if (data.errCd && data.errCd !== "0") {
-        renderLandPriceError(`[API 에러] 에러코드 ${data.errCd}: ${data.errMsg}`);
+    const text = data.contents;
+
+    // 브이월드 서버에서 에러 발생 시(도메인 불일치 등) format=json 옵션을 무시하고 XML을 뱉는 특징 방어
+    if (text.trim().startsWith('<')) {
+      const match = text.match(/<errMsg>(.*?)<\/errMsg>/);
+      throw new Error(match ? match[1] : '브이월드 인증키 또는 도메인 오류 (XML 응답됨)');
+    }
+
+    const jsonData = JSON.parse(text);
+
+    if (jsonData.errCd && jsonData.errCd !== "0") {
+        renderLandPriceError(`[API 에러] 에러코드 ${jsonData.errCd}: ${jsonData.errMsg}`);
         return;
     }
     
-    if (data && data.indvdLandPrices && data.indvdLandPrices.field) {
-        let fields = data.indvdLandPrices.field;
+    if (jsonData && jsonData.indvdLandPrices && jsonData.indvdLandPrices.field) {
+        let fields = jsonData.indvdLandPrices.field;
         if (!Array.isArray(fields)) fields = [fields];
         
         if (fields.length > 0) {
@@ -1011,8 +975,9 @@ async function fetchLandPrice(pnu) {
             renderLandPriceError("검색 완료: 해당 PNU의 공시지가 내역이 없습니다.");
         }
     } else {
-        renderLandPriceError(`데이터를 찾을 수 없거나 올바른 형태가 아닙니다. (사유: ${data.errMsg || '알 수 없음'})`);
+        renderLandPriceError(`데이터를 찾을 수 없거나 올바른 형태가 아닙니다. (사유: ${jsonData.errMsg || '알 수 없음'})`);
     }
+
   } catch (err) {
     renderLandPriceError(`[통신 에러] 데이터를 불러올 수 없습니다.<br><small>${err.message}</small>`);
   }
