@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>토지정보 통합 조회</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:  #0d0f14; --bg2: #13161e; --bg3: #1a1e28;
+    --border:  rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.14);
+    --accent:  #4f8ef7; --accent2: #7c5cfc;
+    --text:    #e8eaf0; --text2: #8b90a0; --text3: #555a6a;
+    --success: #34d399; --warn: #fbbf24; --danger: #f87171;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  /* ── 헤더 ── */
+  header {
+    padding: 20px 40px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .logo {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-weight: 600; font-size: 12px; color: #fff;
+  }
+  .logo-text { font-size: 16px; font-weight: 600; }
+  .logo-sub  { font-size: 12px; color: var(--text2); margin-top: 1px; }
+  .api-status {
+    margin-left: auto; font-size: 12px; color: var(--success);
+    background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25);
+    padding: 5px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px;
+  }
+  .dot-green { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+  /* ── 레이아웃 ── */
+  main { max-width: 900px; margin: 0 auto; padding: 36px 24px 80px; }
+
+  /* ── 탭 ── */
+  .tabs { display: flex; gap: 2px; margin-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 22px; font-size: 14px; cursor: pointer; color: var(--text2);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.15s; user-select: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── 카드 ── */
+  .card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 16px; overflow: hidden; margin-bottom: 20px; }
+  .card-head {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 500; color: var(--text2);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-blue    { background: var(--accent); }
+  .dot-green2  { background: var(--success); }
+  .dot-yellow  { background: var(--warn); }
+
+  /* ── 입력 ── */
+  .input-row { display: flex; gap: 10px; padding: 20px; }
+  input[type="text"] {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 10px; padding: 12px 16px; font-size: 14px;
+    font-family: var(--sans); color: var(--text); outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="text"]::placeholder { color: var(--text3); }
+  input[type="text"]:focus { border-color: var(--accent); }
+  .mono-input { font-family: var(--mono); letter-spacing: 2px; }
+
+  /* ── 버튼 ── */
+  .btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    padding: 12px 22px; font-size: 14px; font-weight: 500; font-family: var(--sans);
+    cursor: pointer; white-space: nowrap; transition: opacity 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-outline {
+    background: transparent; border: 1px solid var(--border2); color: var(--text2);
+    border-radius: 8px; padding: 8px 16px; font-size: 13px; font-family: var(--sans);
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-green {
+    background: rgba(52,211,153,0.15); border: 1px solid rgba(52,211,153,0.35);
+    color: var(--success); border-radius: 8px; padding: 8px 16px; font-size: 13px;
+    font-family: var(--sans); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-green:hover { background: rgba(52,211,153,0.25); }
+
+  /* ── 섹션 라벨 ── */
+  .sec-label {
+    font-size: 11px; font-weight: 600; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .sec-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── 주소 목록 ── */
+  .addr-list { padding: 4px 20px 20px; display: flex; flex-direction: column; gap: 7px; }
+  .addr-item {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 12px; padding: 13px 16px; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .addr-item:hover  { border-color: rgba(79,142,247,0.5); background: rgba(79,142,247,0.04); }
+  .addr-item.sel    { border-color: var(--accent); background: rgba(79,142,247,0.08); }
+  .addr-num {
+    width: 24px; height: 24px; border-radius: 6px;
+    background: var(--bg2); border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-family: var(--mono); color: var(--text3); flex-shrink: 0;
+  }
+  .addr-road  { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+  .addr-jibun { font-size: 12px; color: var(--text2); }
+
+  /* ── PNU 표시 ── */
+  .pnu-display {
+    padding: 24px 20px; display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  .pnu-number {
+    font-family: var(--mono); font-size: 28px; font-weight: 600;
+    letter-spacing: 4px; color: var(--text); text-align: center;
+  }
+  .pnu-segs { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+  .seg { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .seg-val { font-family: var(--mono); font-size: 13px; font-weight: 700; padding: 5px 9px; border-radius: 7px; letter-spacing: 1px; }
+  .seg-label { font-size: 10px; color: var(--text3); }
+  .s1 .seg-val { background: rgba(124,92,252,0.18); color: #a78bfa; }
+  .s2 .seg-val { background: rgba(79,142,247,0.18);  color: #60a5fa; }
+  .s3 .seg-val { background: rgba(52,211,153,0.18);  color: #34d399; }
+  .s4 .seg-val { background: rgba(52,211,153,0.1);   color: #6ee7b7; }
+  .s5 .seg-val { background: rgba(251,191,36,0.18);  color: #fbbf24; }
+  .s6 .seg-val { background: rgba(248,113,113,0.18); color: #f87171; }
+  .s7 .seg-val { background: rgba(248,113,113,0.1);  color: #fca5a5; }
+
+  /* ── 메타 그리드 ── */
+  .meta-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr));
+    gap: 1px; background: var(--border); border-top: 1px solid var(--border);
+  }
+  .meta-cell { background: var(--bg2); padding: 12px 18px; }
+  .meta-k { font-size: 10px; color: var(--text3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .meta-v { font-size: 12px; font-family: var(--mono); color: var(--text); word-break: break-all; }
+
+  /* ── 복사 버튼 ── */
+  .copy-btn {
+    display: flex; align-items: center; gap: 6px; background: var(--bg3);
+    border: 1px solid var(--border2); border-radius: 8px; padding: 7px 14px;
+    font-size: 12px; font-family: var(--sans); color: var(--text2);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .copy-btn:hover  { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.copied { border-color: var(--success); color: var(--success); }
+
+  /* ── 토지정보 그리드 ── */
+  .info-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px; background: var(--border); border-top: 1px solid var(--border);
+  }
+  @media(max-width: 560px) { .info-grid { grid-template-columns: 1fr; } }
+  .info-panel { background: var(--bg2); padding: 18px 20px; }
+  .info-panel-title {
+    font-size: 11px; font-weight: 600; color: var(--text2);
+    text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .info-panel-title::before { content: ''; width: 3px; height: 13px; background: var(--accent); border-radius: 2px; }
+  .info-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 11px; gap: 8px; }
+  .info-row:last-child { margin-bottom: 0; }
+  .info-label { font-size: 13px; color: var(--text2); flex-shrink: 0; }
+  .info-val   { font-size: 13px; color: var(--text); font-family: var(--mono); text-align: right; word-break: break-all; }
+  .info-val.big   { font-size: 16px; color: var(--accent); font-weight: 600; }
+  .info-val.green { color: var(--success); font-weight: 500; }
+  .info-val.warn  { color: var(--warn); }
+
+  /* ── 공시지가 바 차트 ── */
+  .price-section { padding: 18px 20px; }
+  .price-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .price-row:last-child { margin-bottom: 0; }
+  .price-year { font-family: var(--mono); font-size: 12px; color: var(--text3); width: 44px; flex-shrink: 0; }
+  .bar-bg   { flex: 1; background: var(--bg3); border-radius: 4px; height: 22px; overflow: hidden; }
+  .bar-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    display: flex; align-items: center; justify-content: flex-end; padding-right: 6px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+  }
+  .bar-fill span { font-size: 10px; color: rgba(255,255,255,0.85); font-family: var(--mono); white-space: nowrap; }
+  .price-num { font-family: var(--mono); font-size: 12px; color: var(--text2); width: 110px; text-align: right; flex-shrink: 0; }
+
+  /* ── 토지이용계획 태그 ── */
+  .plan-wrap { padding: 16px 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .plan-tag { padding: 5px 13px; border-radius: 20px; font-size: 12px; font-weight: 500; border: 1px solid; }
+  .pc1 { background: rgba(79,142,247,0.1);  border-color: rgba(79,142,247,0.3);  color: #60a5fa; }
+  .pc2 { background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.3);  color: #34d399; }
+  .pc3 { background: rgba(124,92,252,0.1);  border-color: rgba(124,92,252,0.3);  color: #a78bfa; }
+  .pc4 { background: rgba(251,191,36,0.1);  border-color: rgba(251,191,36,0.3);  color: #fbbf24; }
+  .pc5 { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: #f87171; }
+
+  /* ── 상태/에러 ── */
+  .state-box {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 40px 24px; text-align: center; color: var(--text3); font-size: 14px; margin-bottom: 20px;
+  }
+  .spinner {
+    width: 28px; height: 28px; border: 2px solid var(--border2); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 14px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .err-box {
+    background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25);
+    border-radius: 10px; padding: 12px 16px; font-size: 13px; color: var(--danger); margin-bottom: 14px;
+  }
+  .info-box {
+    background: rgba(79,142,247,0.08); border: 1px solid rgba(79,142,247,0.25);
+    border-radius: 10px; padding: 12px 16px; font-size: 13px; color: var(--accent); margin-bottom: 14px;
+  }
+
+  /* ── 토스트 ── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; background: var(--bg3);
+    border: 1px solid var(--success); color: var(--success); border-radius: 10px;
+    padding: 11px 18px; font-size: 13px; opacity: 0; transform: translateY(8px);
+    transition: all 0.2s; pointer-events: none; z-index: 999;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 18px 40px;
+    font-size: 12px; color: var(--text3); display: flex; justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">PNU</div>
+  <div>
+    <div class="logo-text">토지정보 통합 조회</div>
+    <div class="logo-sub">행안부 주소 API · vworld 토지정보 API</div>
+  </div>
+  <div class="api-status"><div class="dot-green"></div>gurupassiv.github.io</div>
+</header>
+
+<main>
+  <div class="tabs">
+    <div class="tab active" id="t1" onclick="switchTab(1)">① 주소 → PNU 조회</div>
+    <div class="tab"        id="t2" onclick="switchTab(2)">② 토지정보 조회</div>
+  </div>
+
+  <!-- ══════════ 탭1: 주소 검색 ══════════ -->
+  <div class="panel active" id="p1">
+
+    <div class="card">
+      <div class="card-head"><div class="dot dot-blue"></div>주소 검색</div>
+      <div class="input-row">
+        <input type="text" id="addrInput" placeholder="예: 서울시 종로구 청운동 1-2" />
+        <button class="btn" id="searchBtn" onclick="searchAddr()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          검색
+        </button>
+      </div>
+    </div>
+
+    <div id="addrErr"   class="err-box"   style="display:none;"></div>
+    <div id="addrState" class="state-box" style="display:none;"></div>
+
+    <div id="addrListWrap" style="display:none;">
+      <div class="sec-label">검색 결과 — 주소를 선택하세요</div>
+      <div class="card">
+        <div class="addr-list" id="addrList"></div>
+      </div>
+    </div>
+
+    <div id="pnuWrap" style="display:none;">
+      <div class="sec-label">PNU 토지고유번호</div>
+      <div class="card">
+        <div class="card-head">
+          <div class="dot dot-green2"></div>
+          <span>PNU 생성 완료</span>
+          <div style="margin-left:auto; display:flex; gap:8px;">
+            <button class="copy-btn" id="copyBtn" onclick="copyPNU()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              복사
+            </button>
+            <button class="btn-green" onclick="goLand()">토지정보 조회 →</button>
+          </div>
+        </div>
+        <div class="pnu-display">
+          <div class="pnu-number" id="pnuDisplay"></div>
+          <div class="pnu-segs"   id="pnuSegs"></div>
+        </div>
+        <div class="meta-grid" id="metaGrid"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════ 탭2: 토지정보 ══════════ -->
+  <div class="panel" id="p2">
+
+    <div class="card">
+      <div class="card-head"><div class="dot dot-yellow"></div>PNU 입력 (19자리)</div>
+      <div class="input-row">
+        <input type="text" id="pnuInput" class="mono-input"
+          placeholder="예: 1168010100108080000" maxlength="19" />
+        <button class="btn" id="landBtn" onclick="queryLand()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          조회
+        </button>
+      </div>
+    </div>
+
+    <div id="landErr"   class="err-box"   style="display:none;"></div>
+    <div id="landMsg"   class="info-box"  style="display:none;"></div>
+    <div id="landState" class="state-box" style="display:none;"></div>
+
+    <div id="landResult" style="display:none;">
+
+      <div class="sec-label">토지 기본정보</div>
+      <div class="card">
+        <div class="card-head"><div class="dot dot-green2"></div><span id="r-title">토지임야 정보</span></div>
+        <div class="info-grid">
+          <div class="info-panel">
+            <div class="info-panel-title">필지 기본</div>
+            <div class="info-row"><span class="info-label">지번</span>    <span class="info-val" id="r-jibun">-</span></div>
+            <div class="info-row"><span class="info-label">지목</span>    <span class="info-val warn" id="r-jimok">-</span></div>
+            <div class="info-row"><span class="info-label">면적</span>    <span class="info-val big"  id="r-area">-</span></div>
+            <div class="info-row"><span class="info-label">주소</span>    <span class="info-val" id="r-addr">-</span></div>
+          </div>
+          <div class="info-panel">
+            <div class="info-panel-title">개별공시지가</div>
+            <div class="info-row"><span class="info-label">기준연월</span>  <span class="info-val" id="r-period">-</span></div>
+            <div class="info-row"><span class="info-label">㎡당 가격</span> <span class="info-val big"   id="r-jiga">-</span></div>
+            <div class="info-row"><span class="info-label">총 추정가</span> <span class="info-val green" id="r-total">-</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-label">개별공시지가 추이</div>
+      <div class="card">
+        <div class="card-head"><div class="dot dot-green2"></div>연도별 ㎡당 공시지가 (원)</div>
+        <div class="price-section" id="priceChart"></div>
+      </div>
+
+      <div class="sec-label">토지이용계획</div>
+      <div class="card">
+        <div class="card-head"><div class="dot dot-green2"></div>지정 현황</div>
+        <div class="plan-wrap" id="planTags"></div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>행정안전부 도로명주소 API · vworld 공간정보 오픈플랫폼</span>
+  <span id="footerPnu" style="font-family:var(--mono); font-size:11px;"></span>
+</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════
+//  설정값
+// ════════════════════════════════
+const JUSO_KEY = 'devU01TX0FVVEgyMDI2MDUwODEzNTAxODExODEyMDA=';
+const JUSO_URL = 'https://www.juso.go.kr/addrlink/addrLinkApi.do';
+const VW_KEY   = 'E0ABE8E2-0A7E-309F-B6FB-BF13C8986D16';
+
+// GitHub Pages 운영 환경: vworld 직접 호출
+const VW_PROXY = 'https://api.vworld.kr/req/data';
+
+let currentPNU = '';
+
+// ════════════════════════════════
+//  탭 전환
+// ════════════════════════════════
+function switchTab(n) {
+  [1,2].forEach(i => {
+    document.getElementById(`p${i}`).classList.toggle('active', i===n);
+    document.getElementById(`t${i}`).classList.toggle('active', i===n);
+  });
+}
+function goLand() {
+  if (!currentPNU) return;
+  document.getElementById('pnuInput').value = currentPNU;
+  switchTab(2);
+  queryLand();
+}
+
+// ════════════════════════════════
+//  1) 주소 검색 (행안부)
+// ════════════════════════════════
+document.getElementById('addrInput').addEventListener('keydown', e => { if(e.key==='Enter') searchAddr(); });
+document.getElementById('pnuInput').addEventListener('keydown',  e => { if(e.key==='Enter') queryLand(); });
+
+async function searchAddr() {
+  const kw = document.getElementById('addrInput').value.trim();
+  if (!kw) { showErr('addrErr','주소를 입력해주세요.'); return; }
+  hide('addrListWrap'); hide('pnuWrap'); hideErr('addrErr');
+  setDisabled('searchBtn', true);
+  showState('addrState','<div class="spinner"></div>주소를 검색하는 중...');
+  try {
+    const p = new URLSearchParams({ confmKey:JUSO_KEY, currentPage:1, countPerPage:10, keyword:kw, resultType:'json' });
+    const r = await fetch(`${JUSO_URL}?${p}`);
+    const d = await r.json();
+    hideState('addrState');
+    const list = d?.results?.juso;
+    if (!list?.length) {
+      showState('addrState','<div style="font-size:28px;margin-bottom:10px">🔍</div>검색 결과가 없습니다.');
+      return;
+    }
+    renderAddrList(list);
+  } catch(e) {
+    hideState('addrState');
+    showErr('addrErr','주소 API 오류: '+e.message);
+  } finally {
+    setDisabled('searchBtn', false);
+  }
+}
+
+function renderAddrList(list) {
+  const ul = document.getElementById('addrList');
+  ul.innerHTML = '';
+  list.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'addr-item';
+    div.innerHTML = `
+      <div class="addr-num">${i+1}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="addr-road">${item.roadAddr || item.jibunAddr}</div>
+        <div class="addr-jibun">지번: ${item.jibunAddr}</div>
+      </div>
+      <span style="color:var(--text3);font-size:18px;">›</span>`;
+    div.onclick = () => {
+      document.querySelectorAll('.addr-item').forEach(d => d.classList.remove('sel'));
+      div.classList.add('sel');
+      buildPNU(item);
+    };
+    ul.appendChild(div);
+  });
+  show('addrListWrap');
+}
+
+// ════════════════════════════════
+//  PNU 조합
+// ════════════════════════════════
+function buildPNU(item) {
+  const bd = item.bdMgtSn || '';
+  if (bd.length < 10) { showErr('addrErr','법정동코드를 가져오지 못했습니다.'); return; }
+  const lawCd = bd.substring(0, 10);
+  const isSan = (item.jibunAddr||'').includes('산');
+  const san   = isSan ? '2' : '1';
+  const bon   = (item.lnbrMnnm||'').replace(/\D/g,'').padStart(4,'0').slice(-4);
+  const bu    = (item.lnbrSlno||'').replace(/\D/g,'').padStart(4,'0').slice(-4);
+  const pnu   = lawCd + san + bon + bu;
+  currentPNU  = pnu;
+  renderPNU(pnu, lawCd, san, bon, bu, item);
+}
+
+function renderPNU(pnu, lawCd, san, bon, bu, item) {
+  document.getElementById('pnuDisplay').textContent = pnu;
+  document.getElementById('footerPnu').textContent  = pnu;
+
+  const segs = [
+    { c:'s1', v:lawCd.slice(0,2),  l:'시도'   },
+    { c:'s2', v:lawCd.slice(2,5),  l:'시군구' },
+    { c:'s3', v:lawCd.slice(5,8),  l:'읍면동' },
+    { c:'s4', v:lawCd.slice(8,10), l:'리'     },
+    { c:'s5', v:san,               l:'산구분' },
+    { c:'s6', v:bon,               l:'본번'   },
+    { c:'s7', v:bu,                l:'부번'   },
+  ];
+  document.getElementById('pnuSegs').innerHTML = segs.map(s =>
+    `<div class="seg ${s.c}"><div class="seg-val">${s.v}</div><div class="seg-label">${s.l}</div></div>`
+  ).join('');
+
+  document.getElementById('metaGrid').innerHTML = [
+    ['도로명주소', item.roadAddr||'-'],
+    ['지번주소',   item.jibunAddr||'-'],
+    ['법정동코드', lawCd],
+    ['우편번호',   item.zipNo||'-'],
+    ['산구분',     san==='2'?'산지(2)':'일반지(1)'],
+    ['건물관리번호', item.bdMgtSn||'-'],
+  ].map(([k,v]) =>
+    `<div class="meta-cell"><div class="meta-k">${k}</div><div class="meta-v">${v}</div></div>`
+  ).join('');
+
+  show('pnuWrap');
+}
+
+// ════════════════════════════════
+//  2) 토지정보 조회 (vworld → 프록시)
+// ════════════════════════════════
+async function queryLand() {
+  const pnu = document.getElementById('pnuInput').value.trim();
+  if (!pnu || pnu.length !== 19) { showErr('landErr','PNU 19자리를 정확히 입력해주세요.'); return; }
+
+  hide('landResult'); hideErr('landErr'); hide('landMsg');
+  setDisabled('landBtn', true);
+  showState('landState','<div class="spinner"></div>토지정보를 조회하는 중입니다...');
+
+  try {
+    // LP_PA_CBND_BUBUN: 연속지적도 (지번/지목/공시지가)
+    const parcel = await vwFetch('LP_PA_CBND_BUBUN', `pnu:=:${pnu}`);
+    // LT_C_LHISMAP: 토지이용계획
+    const plan   = await vwFetch('LT_C_LHISMAP', `pnu:=:${pnu}`);
+
+    hideState('landState');
+
+    if (!parcel) {
+      showMsg('landMsg','조회된 토지정보가 없습니다. PNU 값을 확인해주세요.');
+    } else {
+      renderLand(parcel, plan, pnu);
+    }
+    show('landResult');
+    document.getElementById('footerPnu').textContent = pnu;
+
+  } catch(e) {
+    hideState('landState');
+    showErr('landErr','vworld API 오류: ' + e.message);
+  } finally {
+    setDisabled('landBtn', false);
+  }
+}
+
+async function vwFetch(layer, filter) {
+  const params = new URLSearchParams({
+    service:    'data',
+    request:    'GetFeature',
+    data:       layer,
+    key:        VW_KEY,
+    attrFilter: filter,
+    page:       1,
+    size:       10,
+    format:     'json'
+  });
+  // vworld 직접 호출 (gurupassiv.github.io 도메인 등록 필요)
+  const url = `${VW_PROXY}?${params}`;
+  const r   = await fetch(url);
+  const d   = await r.json();
+
+  console.log(`[vworld:${layer}]`, d);
+
+  const status = d?.response?.status;
+  if (status && status !== 'OK') {
+    console.warn(`vworld 응답 오류 [${layer}]:`, status, d?.response?.error?.text);
+    return null;
+  }
+  const feats = d?.response?.result?.featureCollection?.features;
+  return (feats && feats.length > 0) ? feats[0].properties : null;
+}
+
+function renderLand(p, planProp, pnu) {
+  console.log('[토지정보 원본]', p);
+
+  // ── LP_PA_CBND_BUBUN 실제 필드
+  // pnu, jibun, bonbun, bubun, addr, gosi_year, gosi_month, jiga
+  const jibun  = p.jibun  || '-';
+  const addr   = p.addr   || '-';
+  const year   = p.gosi_year   || '';
+  const month  = p.gosi_month  || '';
+  const jiga   = p.jiga ? parseInt(p.jiga) : 0;
+  const area   = p.area ? parseFloat(p.area) : 0;
+
+  // 지목 파싱: jibun 필드가 "808 대" 또는 "100-2 답" 형태
+  let jimok = '-';
+  const m = (jibun + '').match(/[\d\-]+\s+([\가-힣]+)/);
+  if (m) jimok = m[1];
+
+  // 헤더 주소
+  document.getElementById('r-title').textContent = addr;
+  set('r-jibun',  jibun);
+  set('r-jimok',  jimok);
+  set('r-addr',   addr);
+  set('r-area',   area  ? `${area.toLocaleString()} ㎡` : '-');
+  set('r-period', (year && month) ? `${year}년 ${month}월` : (year ? `${year}년` : '-'));
+  set('r-jiga',   jiga  ? `${jiga.toLocaleString()} 원/㎡` : '-');
+
+  if (jiga && area) {
+    const total = jiga * area;
+    const uk = (total / 100000000).toFixed(2);
+    set('r-total', `약 ${uk} 억원`);
+  } else {
+    set('r-total', '-');
+  }
+
+  // 공시지가 바 차트
+  renderChart(jiga ? [{ year: year||'최근', price: jiga }] : []);
+
+  // 토지이용계획 태그
+  renderPlan(planProp);
+}
+
+function renderChart(data) {
+  const wrap = document.getElementById('priceChart');
+  if (!data.length) { wrap.innerHTML = '<div style="color:var(--text3);font-size:13px;">데이터 없음</div>'; return; }
+  const max = Math.max(...data.map(d => d.price));
+  wrap.innerHTML = data.map(d => {
+    const pct = Math.round(d.price / max * 100);
+    return `
+      <div class="price-row">
+        <div class="price-year">${d.year}</div>
+        <div class="bar-bg">
+          <div class="bar-fill" style="width:${pct}%">
+            ${pct > 20 ? `<span>${d.price.toLocaleString()}</span>` : ''}
+          </div>
+        </div>
+        <div class="price-num">${d.price.toLocaleString()} 원</div>
+      </div>`;
+  }).join('');
+}
+
+function renderPlan(p) {
+  const wrap = document.getElementById('planTags');
+  if (!p) { wrap.innerHTML = '<span style="color:var(--text3);font-size:13px;">데이터 없음</span>'; return; }
+  const tags = [p.use_zn_nm, p.prpos_area1_nm, p.prpos_area2_nm, p.jimok_nm, p.speczone_nm].filter(Boolean);
+  const cls  = ['pc1','pc2','pc3','pc4','pc5'];
+  wrap.innerHTML = tags.length
+    ? tags.map((t,i) => `<span class="plan-tag ${cls[i%5]}">${t}</span>`).join('')
+    : '<span style="color:var(--text3);font-size:13px;">지정된 토지이용계획 없음</span>';
+}
+
+// ════════════════════════════════
+//  복사
+// ════════════════════════════════
+function copyPNU() {
+  navigator.clipboard.writeText(currentPNU).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.classList.add('copied');
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>복사됨`;
+    toast('PNU가 클립보드에 복사되었습니다.');
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>복사`;
+    }, 2600);
+  });
+}
+
+// ════════════════════════════════
+//  유틸
+// ════════════════════════════════
+function set(id, val) { const el = document.getElementById(id); if(el) el.textContent = val; }
+function show(id)  { const el = document.getElementById(id); if(el) el.style.display = ''; }
+function hide(id)  { const el = document.getElementById(id); if(el) el.style.display = 'none'; }
+function showState(id, html) { const el = document.getElementById(id); el.innerHTML = html; el.style.display = 'block'; }
+function hideState(id)       { document.getElementById(id).style.display = 'none'; }
+function showErr(id, msg)    { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 7000); }
+function hideErr(id)         { document.getElementById(id).style.display = 'none'; }
+function showMsg(id, msg)    { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
+function setDisabled(id, v)  { const el = document.getElementById(id); if(el) el.disabled = v; }
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+</script>
+</body>
+</html>
