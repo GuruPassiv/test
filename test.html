@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PNU 및 토지종합정보 조회</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f14;
+    --bg2: #13161e;
+    --bg3: #1a1e28;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --accent: #4f8ef7;
+    --accent2: #7c5cfc;
+    --text: #e8eaf0;
+    --text2: #8b90a0;
+    --text3: #555a6a;
+    --success: #34d399;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  header {
+    width: 100%;
+    padding: 28px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-weight: 600; font-size: 13px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-size: 16px; font-weight: 500;
+    letter-spacing: -0.3px;
+  }
+  .logo-sub {
+    font-size: 12px; color: var(--text2);
+    margin-top: 1px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 760px;
+    padding: 48px 24px 80px;
+    flex: 1;
+  }
+
+  .page-title {
+    font-size: 28px; font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, var(--text), var(--text2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .page-desc {
+    font-size: 14px; color: var(--text2);
+    margin-bottom: 36px;
+    line-height: 1.7;
+  }
+
+  .search-box {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .search-label {
+    font-size: 12px; font-weight: 500;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+
+  .search-row {
+    display: flex; gap: 10px;
+  }
+
+  input[type="text"] {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-family: var(--sans);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input[type="text"]::placeholder { color: var(--text3); }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 22px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: var(--sans);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:hover { opacity: 0.88; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .search-hint {
+    font-size: 12px; color: var(--text3);
+    margin-top: 10px;
+  }
+
+  .section-label {
+    font-size: 12px; font-weight: 500;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 36px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .addr-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .addr-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .addr-item:hover {
+    border-color: var(--accent);
+    background: var(--bg3);
+  }
+  .addr-item.selected {
+    border-color: var(--accent);
+    background: rgba(79,142,247,0.08);
+  }
+
+  .addr-icon {
+    width: 32px; height: 32px;
+    background: var(--bg3);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+  }
+
+  .addr-road {
+    font-size: 14px; font-weight: 500;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .addr-jibun {
+    font-size: 12px; color: var(--text2);
+  }
+  .addr-badge {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(79,142,247,0.15);
+    color: var(--accent);
+    flex-shrink: 0;
+    font-family: var(--mono);
+  }
+
+  .result-card {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  .result-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .result-header.land-header {
+    background: rgba(124, 92, 252, 0.05);
+  }
+
+  .result-title {
+    font-size: 14px; font-weight: 500; color: var(--text2);
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+  .dot.purple { background: var(--accent2); }
+
+  .pnu-display {
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .pnu-number {
+    font-family: var(--mono);
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: var(--text);
+    word-break: break-all;
+    text-align: center;
+  }
+
+  .pnu-segments {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .seg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .seg-val {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 8px;
+    letter-spacing: 1px;
+  }
+
+  .seg-label {
+    font-size: 10px;
+    color: var(--text3);
+    text-align: center;
+  }
+
+  .seg-sido .seg-val    { background: rgba(124,92,252,0.18); color: #a78bfa; }
+  .seg-sigungu .seg-val { background: rgba(79,142,247,0.18); color: #60a5fa; }
+  .seg-eupmyeondong .seg-val { background: rgba(52,211,153,0.18); color: #34d399; }
+  .seg-ri .seg-val      { background: rgba(52,211,153,0.12); color: #6ee7b7; }
+  .seg-san .seg-val     { background: rgba(251,191,36,0.18); color: #fbbf24; }
+  .seg-bonbun .seg-val  { background: rgba(248,113,113,0.18); color: #f87171; }
+  .seg-bubun .seg-val   { background: rgba(248,113,113,0.12); color: #fca5a5; }
+
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-family: var(--sans);
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.copied { border-color: var(--success); color: var(--success); }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+  }
+
+  .meta-cell {
+    background: var(--bg2);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .meta-key {
+    font-size: 11px; color: var(--text3);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .meta-val {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.4;
+  }
+  .meta-val .highlight {
+    color: var(--accent2);
+    font-weight: 700;
+  }
+
+  .state-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--text3);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .state-icon { font-size: 32px; margin-bottom: 12px; }
+
+  .spinner {
+    width: 28px; height: 28px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 14px;
+  }
+  .spinner.small {
+    width: 18px; height: 18px; border-width: 2px; margin: 0;
+    display: inline-block; vertical-align: middle; margin-right: 8px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed;
+    bottom: 28px; right: 28px;
+    background: var(--bg3);
+    border: 1px solid var(--success);
+    color: var(--success);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-family: var(--sans);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.2s;
+    pointer-events: none;
+    z-index: 999;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  .error-box {
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.25);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--danger);
+    margin-bottom: 16px;
+  }
+
+  .price-list { display: flex; flex-direction: column; }
+  .price-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+  .price-item:last-child { border-bottom: none; }
+  .price-year-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .price-year { font-size: 14px; font-weight: 500; color: var(--text); }
+  .price-date { font-size: 11px; color: var(--text3); }
+  .price-val-wrap { text-align: right; }
+  .price-val { font-family: var(--mono); font-size: 16px; font-weight: 600; color: var(--success); }
+  .price-unit { font-size: 12px; color: var(--text2); margin-left: 4px; }
+
+  /* AI 리포트 스타일 추가 */
+  .ai-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #6b21a8, #9333ea);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: var(--sans);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .ai-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(147, 51, 234, 0.2);
+  }
+  .ai-btn:active { transform: scale(0.98); }
+  .ai-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+  
+  .ai-content {
+    background: var(--bg2);
+    border: 1px solid rgba(147, 51, 234, 0.3);
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 20px;
+    line-height: 1.6;
+    color: var(--text);
+    font-size: 14px;
+    display: none;
+  }
+  .ai-content p { margin-bottom: 12px; }
+  .ai-content strong { color: var(--accent2); }
+
+  .history-section { margin-top: 36px; }
+
+  .history-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .history-item:hover { border-color: var(--border2); }
+
+  .history-addr {
+    flex: 1;
+    font-size: 13px; color: var(--text2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .history-pnu {
+    font-family: var(--mono);
+    font-size: 12px; color: var(--text3);
+    flex-shrink: 0;
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 40px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px; color: var(--text3);
+  }
+
+  .number-font { font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">PNU</div>
+  <div>
+    <div class="logo-text">토지종합정보 조회</div>
+    <div class="logo-sub">행정안전부 주소 API & 브이월드 공간정보 연동</div>
+  </div>
+</header>
+
+<main>
+  <h1 class="page-title">PNU 기반 토지 정보 시스템</h1>
+  <p class="page-desc">주소를 입력하여 PNU 19자리를 추출하고, 해당 토지의 상세 제원(지목, 면적, 공시지가 등)을 한 번에 확인하세요.</p>
+
+  <div class="search-box">
+    <div class="search-label">주소 검색</div>
+    <div class="search-row">
+      <input type="text" id="addrInput" placeholder="예: 서울시 종로구 청운동, 강남구 역삼동 123" />
+      <button class="btn" id="searchBtn" onclick="searchAddr()">검색</button>
+    </div>
+    <div class="search-hint">도로명 주소 또는 지번 주소를 입력하세요 · Enter 키로도 검색 가능</div>
+  </div>
+
+  <div id="errorBox" class="error-box" style="display:none;"></div>
+  <div id="stateBox" class="state-box" style="display:none;"></div>
+  
+  <div id="addrListWrap" style="display:none;">
+    <div class="section-label">1. 주소 검색 결과 (선택)</div>
+    <div class="addr-list" id="addrList"></div>
+  </div>
+
+  <div id="resultWrap" style="display:none;">
+    <div class="section-label">2. PNU 토지고유번호 추출 완료</div>
+    <div class="result-card">
+      <div class="result-header">
+        <div class="dot"></div>
+        <span class="result-title">PNU 분석 결과</span>
+        <button class="copy-btn" id="copyBtn" onclick="copyPNU()" style="margin-left:auto;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          복사
+        </button>
+      </div>
+      <div class="pnu-display">
+        <div class="pnu-number" id="pnuNumber"></div>
+        <div class="pnu-segments" id="pnuSegments"></div>
+      </div>
+      <div class="meta-grid" id="metaGrid"></div>
+    </div>
+  </div>
+
+  <div id="landInfoWrap" style="display:none;">
+    <div class="section-label">3. 토지 상세 특성 (브이월드)</div>
+    <div class="result-card">
+      <div class="result-header land-header">
+        <div class="dot purple"></div>
+        <span class="result-title">토지대장 기초 데이터</span>
+      </div>
+      <div id="landInfoContent" style="padding: 30px; text-align: center; color: var(--text3);">
+        <div class="spinner"></div>데이터를 불러오는 중입니다...
+      </div>
+    </div>
+  </div>
+
+  <div id="landPriceWrap" style="display:none;">
+    <div class="section-label">4. 개별공시지가 연도별 내역</div>
+    <div class="result-card">
+      <div class="result-header" style="background: rgba(52, 211, 153, 0.05);">
+        <div class="dot" style="background: var(--success);"></div>
+        <span class="result-title">국가공간정보 개별공시지가</span>
+      </div>
+      <div id="landPriceContent" style="padding: 30px; text-align: center; color: var(--text3);">
+        <div class="spinner"></div>공시지가 데이터를 불러오는 중입니다...
+      </div>
+    </div>
+  </div>
+
+  <div id="aiWrap" style="display:none;">
+    <button class="ai-btn" id="aiBtn" onclick="generateAIReport()">
+      ✨ Gemini AI 토지 가치 분석 리포트 생성
+    </button>
+    <div id="aiContent" class="ai-content"></div>
+  </div>
+
+  <div class="history-section" id="historySection" style="display:none;">
+    <div class="section-label">최근 조회 기록</div>
+    <div id="historyList"></div>
+  </div>
+</main>
+
+<footer>
+  <span>행정안전부 & 국토교통부 브이월드 OPEN API 활용</span>
+  <span>개발/테스트용 통합 UI</span>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==========================================
+// 1. API 설정 영역
+// ==========================================
+const JUSO_API_KEY = 'devU01TX0FVVEgyMDI2MDUwODEzNTAxODExODEyMDA=';
+const JUSO_API_URL = 'https://www.juso.go.kr/addrlink/addrLinkApi.do';
+
+const VWORLD_API_KEY = '8625572D-DC1C-3111-B18F-0B578E3C2B59'; 
+const VWORLD_DOMAIN = 'https://gurupassiv.github.io'; // ⬅️ Github Pages 도메인 고정 설정
+
+const searchHistory = [];
+let currentLandData = { address: "", jimok: "", parea: "", terrain: "", prices: [] };
+
+// ==========================================
+// 2. 이벤트 리스너 & 유틸 함수
+// ==========================================
+document.getElementById('addrInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchAddr();
+});
+
+function showState(html) {
+  const s = document.getElementById('stateBox');
+  s.innerHTML = html;
+  s.style.display = 'block';
+}
+function hideState() { document.getElementById('stateBox').style.display = 'none'; }
+
+function showError(msg) {
+  const e = document.getElementById('errorBox');
+  e.innerHTML = msg;
+  e.style.display = 'block';
+  setTimeout(() => { e.style.display = 'none'; }, 6000);
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ==========================================
+// 2-1. 통신 유틸리티 (CORS 우회 로직 추가)
+// ==========================================
+// 로컬 환경이나 VScode Live Server(127.0.0.1 등)에서 브이월드 호출 시 발생하는 CORS 차단을 우회합니다.
+async function fetchWithCORS(url) {
+  try {
+    // 1차 시도: 직접 통신 (사용자가 키를 정상 도메인에 등록했을 경우 성공)
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    // 2차 시도: CORS 에러 발생 시 퍼블릭 프록시(allorigins)를 경유하여 우회 호출
+    console.warn('CORS 차단 감지됨. 퍼블릭 프록시를 통해 우회합니다.', error);
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    const proxyResponse = await fetch(proxyUrl);
+    if (!proxyResponse.ok) throw new Error(`Proxy HTTP Error: ${proxyResponse.status}`);
+    return await proxyResponse.json();
+  }
+}
+
+// ==========================================
+// 3. 주소 검색 (행정안전부 API)
+// ==========================================
+async function searchAddr() {
+  const keyword = document.getElementById('addrInput').value.trim();
+  if (!keyword) { showError('주소를 입력해주세요.'); return; }
+
+  document.getElementById('addrListWrap').style.display = 'none';
+  document.getElementById('resultWrap').style.display = 'none';
+  document.getElementById('landInfoWrap').style.display = 'none';
+  document.getElementById('landPriceWrap').style.display = 'none';
+  document.getElementById('aiWrap').style.display = 'none';
+  document.getElementById('aiContent').style.display = 'none';
+  document.getElementById('errorBox').style.display = 'none';
+  
+  currentLandData = { address: "", jimok: "", parea: "", terrain: "", prices: [] };
+
+  const inputEl = document.getElementById('addrInput');
+  const btnEl = document.getElementById('searchBtn');
+  inputEl.disabled = true;
+  btnEl.disabled = true;
+
+  showState('<div class="spinner"></div>주소를 검색하는 중입니다...');
+
+  try {
+    const params = new URLSearchParams({
+      confmKey: JUSO_API_KEY,
+      currentPage: 1,
+      countPerPage: 10,
+      keyword: keyword,
+      resultType: 'json'
+    });
+
+    const res = await fetch(`${JUSO_API_URL}?${params}`);
+    const data = await res.json();
+    hideState();
+
+    const results = data?.results?.juso;
+    if (!results || results.length === 0) {
+      showState('<div class="state-icon">&#x1F50D;</div>검색 결과가 없습니다.<br>다른 주소로 다시 검색해보세요.');
+      return;
+    }
+
+    renderAddrList(results);
+  } catch (err) {
+    hideState();
+    showError('주소 API 호출 중 오류가 발생했습니다. 네트워크를 확인해주세요. <br><small>(' + err.message + ')</small>');
+  } finally {
+    inputEl.disabled = false;
+    btnEl.disabled = false;
+    inputEl.focus();
+  }
+}
+
+function renderAddrList(list) {
+  const wrap = document.getElementById('addrListWrap');
+  const ul = document.getElementById('addrList');
+  ul.innerHTML = '';
+
+  list.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'addr-item';
+    div.innerHTML = `
+      <div class="addr-icon">&#x1F4CD;</div>
+      <div style="flex:1; min-width:0;">
+        <div class="addr-road">${item.roadAddr || item.jibunAddr}</div>
+        <div class="addr-jibun">지번: ${item.jibunAddr}</div>
+      </div>
+      <div class="addr-badge">선택 ${idx + 1}</div>
+    `;
+    div.onclick = () => selectAddr(item, div);
+    ul.appendChild(div);
+  });
+
+  wrap.style.display = 'block';
+}
+
+// ==========================================
+// 4. PNU 생성 및 UI 렌더링
+// ==========================================
+function selectAddr(item, el) {
+  document.querySelectorAll('.addr-item').forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+  buildPNU(item);
+}
+
+function buildPNU(item) {
+  const bdMgtSn = item.bdMgtSn || '';
+  const jibunAddr = item.jibunAddr || '';
+
+  let lawCd = '';
+  let bonbun = '0000';
+  let bubun = '0000';
+  let sanGbn = '1';
+
+  if (bdMgtSn && bdMgtSn.length >= 10) {
+    lawCd = bdMgtSn.substring(0, 10);
+  } else {
+    showError('건물관리번호가 없는 주소(나대지/임야)는 현재 방식에서 법정동 코드를 추출할 수 없습니다. 건물이 있는 주소를 선택해주세요.');
+    return;
+  }
+
+  const isSan = jibunAddr.includes('산');
+  sanGbn = isSan ? '2' : '1';
+
+  const lnbrMnnm = item.lnbrMnnm || '';
+  const lnbrSlno = item.lnbrSlno || '';
+
+  if (lnbrMnnm) bonbun = lnbrMnnm.replace(/[^0-9]/g, '').padStart(4, '0').slice(-4);
+  if (lnbrSlno) bubun = lnbrSlno.replace(/[^0-9]/g, '').padStart(4, '0').slice(-4);
+
+  const pnu = lawCd + sanGbn + bonbun + bubun;
+
+  renderResult(pnu, lawCd, sanGbn, bonbun, bubun, item);
+
+  searchHistory.unshift({ addr: item.roadAddr || item.jibunAddr, pnu });
+  if (searchHistory.length > 5) searchHistory.pop();
+  renderHistory();
+
+  // 토지 정보 조회
+  fetchLandInfo(pnu);
+  fetchLandPrice(pnu);
+}
+
+function renderResult(pnu, lawCd, sanGbn, bonbun, bubun, item) {
+  document.getElementById('pnuNumber').textContent = pnu;
+  currentLandData.address = item.roadAddr || item.jibunAddr || '-';
+
+  const sido = lawCd.substring(0, 2);
+  const sigungu = lawCd.substring(2, 5);
+  const eupmyeondong = lawCd.substring(5, 8);
+  const ri = lawCd.substring(8, 10);
+
+  const segs = [
+    { cls: 'seg-sido',         val: sido,          label: '시도\n(2자리)' },
+    { cls: 'seg-sigungu',      val: sigungu,        label: '시군구\n(3자리)' },
+    { cls: 'seg-eupmyeondong', val: eupmyeondong,   label: '읍면동\n(3자리)' },
+    { cls: 'seg-ri',           val: ri,             label: '리\n(2자리)' },
+    { cls: 'seg-san',          val: sanGbn,         label: '산구분\n(1자리)' },
+    { cls: 'seg-bonbun',       val: bonbun,         label: '본번\n(4자리)' },
+    { cls: 'seg-bubun',        val: bubun,           label: '부번\n(4자리)' },
+  ];
+
+  document.getElementById('pnuSegments').innerHTML = segs.map(s => `
+    <div class="seg ${s.cls}">
+      <div class="seg-val">${s.val}</div>
+      <div class="seg-label">${s.label.replace('\n', '<br>')}</div>
+    </div>
+  `).join('');
+
+  const metas = [
+    { key: '도로명주소', val: item.roadAddr || '-' },
+    { key: '지번주소',   val: item.jibunAddr || '-' },
+    { key: '법정동코드', val: lawCd },
+    { key: '산 구분',    val: sanGbn === '2' ? '산 (2)' : '일반지 (1)' },
+  ];
+
+  document.getElementById('metaGrid').innerHTML = metas.map(m => `
+    <div class="meta-cell">
+      <div class="meta-key">${m.key}</div>
+      <div class="meta-val">${m.val}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('resultWrap').style.display = 'block';
+}
+
+function copyPNU() {
+  const pnu = document.getElementById('pnuNumber').textContent;
+  const el = document.createElement('textarea');
+  el.value = pnu;
+  document.body.appendChild(el);
+  el.select();
+  document.execCommand('copy');
+  document.body.removeChild(el);
+
+  const btn = document.getElementById('copyBtn');
+  btn.classList.add('copied');
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 복사됨`;
+  toast('PNU가 클립보드에 복사되었습니다.');
+  setTimeout(() => {
+    btn.classList.remove('copied');
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 복사`;
+  }, 2500);
+}
+
+// ==========================================
+// 5. 브이월드 토지특성정보 연동
+// ==========================================
+async function fetchLandInfo(pnu) {
+  const wrap = document.getElementById('landInfoWrap');
+  const content = document.getElementById('landInfoContent');
+  
+  wrap.style.display = 'block';
+  content.innerHTML = `<div style="padding: 40px 0;"><div class="spinner"></div>브이월드 데이터베이스에서 토지 특성을 조회하고 있습니다...</div>`;
+
+  // ⬅️ 동적 도메인 로직을 제거하고 고정된 도메인(VWORLD_DOMAIN) 사용
+  const apiUrl = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_LANDINFO&key=${VWORLD_API_KEY}&domain=${VWORLD_DOMAIN}&attrFilter=pnu:=:${pnu}&format=json`;
+
+  try {
+    const data = await fetchWithCORS(apiUrl); 
+    
+    if (data && data.response && data.response.status === 'OK') {
+      const features = data.response.result.featureCollection.features;
+      if (features && features.length > 0) {
+        renderLandInfo(features[0].properties);
+      } else {
+        renderLandError("검색 완료: 해당 PNU에 대한 토지대장 데이터가 브이월드에 존재하지 않습니다.");
+      }
+    } 
+    else if (data && data.response && data.response.error) {
+      renderLandError(`[API 차단됨] ${data.response.error.text}`);
+    } 
+    else {
+      renderLandError("알 수 없는 응답 형식입니다.");
+    }
+  } catch (err) {
+    renderLandError(`[통신 차단됨] 데이터를 불러올 수 없습니다.<br><small>${err.message}</small>`);
+  }
+}
+
+// ==========================================
+// 6. 토지 정보 화면 렌더링
+// ==========================================
+function renderLandInfo(props) {
+  const formatNumber = (num) => num ? Number(num).toLocaleString('ko-KR') : '-';
+  const jimok = props.jimok_nm || props.jimok || '-';
+  
+  currentLandData.jimok = jimok;
+  currentLandData.parea = props.parea || '-';
+  currentLandData.terrain = props.tpgrph_hg_nm || '-';
+
+  const html = `
+    <div class="meta-grid">
+      <div class="meta-cell">
+        <div class="meta-key">지목 (토지의 용도)</div>
+        <div class="meta-val highlight">${jimok}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-key">토지 면적</div>
+        <div class="meta-val"><span class="number-font">${formatNumber(props.parea)}</span> ㎡</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-key">개별공시지가 (1㎡ 당)</div>
+        <div class="meta-val"><span class="number-font">${formatNumber(props.pannjiga)}</span> 원</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-key">지형 높이</div>
+        <div class="meta-val">${props.tpgrph_hg_nm || '-'}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-key">지형 형상</div>
+        <div class="meta-val">${props.tpgrph_frm_nm || '-'}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-key">도로 접면 상황</div>
+        <div class="meta-val">${props.road_side_nm || '-'}</div>
+      </div>
+    </div>
+  `;
+  
+  const content = document.getElementById('landInfoContent');
+  content.style.padding = '0';
+  content.innerHTML = html;
+}
+
+function renderLandError(msg) {
+  document.getElementById('landInfoContent').innerHTML = `
+    <div style="padding: 30px; color: var(--warn); font-size: 14px;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 8px; display: block; margin: 0 auto 10px;">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      ${msg}
+    </div>
+  `;
+}
+
+// ==========================================
+// 6-2. 개별공시지가 조회 (CORS 오류 해결)
+// ==========================================
+async function fetchLandPrice(pnu) {
+  const wrap = document.getElementById('landPriceWrap');
+  const content = document.getElementById('landPriceContent');
+  
+  wrap.style.display = 'block';
+  content.innerHTML = `<div style="padding: 40px 0;"><div class="spinner"></div>과거부터 현재까지의 공시지가를 조회하고 있습니다...</div>`;
+
+  let parameter = "?key=" + encodeURIComponent(VWORLD_API_KEY);   
+  parameter += "&domain=" + encodeURIComponent(VWORLD_DOMAIN); // ⬅️ 공시지가 API에도 명시적으로 도메인 추가
+  parameter += "&pnu=" + encodeURIComponent(pnu); 
+  parameter += "&format=json"; 
+  
+  const apiUrl = "https://api.vworld.kr/ned/data/getIndvdLandPriceAttr" + parameter;
+
+  try {
+    const data = await fetchWithCORS(apiUrl); 
+
+    if (data.errCd && data.errCd !== "0") {
+        renderLandPriceError(`[API 에러] 에러코드 ${data.errCd}: ${data.errMsg}`);
+        return;
+    }
+    
+    if (data && data.indvdLandPrices && data.indvdLandPrices.field) {
+        let fields = data.indvdLandPrices.field;
+        if (!Array.isArray(fields)) fields = [fields];
+        
+        if (fields.length > 0) {
+            renderLandPrice(fields);
+        } else {
+            renderLandPriceError("검색 완료: 해당 PNU의 공시지가 내역이 없습니다.");
+        }
+    } else {
+        renderLandPriceError(`데이터를 찾을 수 없거나 올바른 형태가 아닙니다. (사유: ${data.errMsg || '알 수 없음'})`);
+    }
+  } catch (err) {
+    renderLandPriceError(`[통신 에러] 데이터를 불러올 수 없습니다.<br><small>${err.message}</small>`);
+  }
+}
+
+function renderLandPrice(fields) {
+  const formatNumber = (num) => num ? Number(num).toLocaleString('ko-KR') : '-';
+  
+  fields.sort((a, b) => Number(b.stdrYear) - Number(a.stdrYear));
+  
+  currentLandData.prices = fields.map(f => `${f.stdrYear}년 ${f.pblntfPclnd}원/㎡`);
+
+  const listHtml = fields.map(item => `
+    <div class="price-item">
+      <div class="price-year-wrap">
+        <div class="price-year">${item.stdrYear}년 ${item.stdrMt}월 기준</div>
+        <div class="price-date">공시일: ${item.pblntfDe || '-'}</div>
+      </div>
+      <div class="price-val-wrap">
+        <span class="price-val">${formatNumber(item.pblntfPclnd)}</span><span class="price-unit">원/㎡</span>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('landPriceContent').style.padding = '0';
+  document.getElementById('landPriceContent').innerHTML = `<div class="price-list">${listHtml}</div>`;
+  
+  document.getElementById('aiWrap').style.display = 'block';
+  document.getElementById('aiBtn').style.display = 'flex';
+  document.getElementById('aiContent').style.display = 'none';
+}
+
+function renderLandPriceError(msg) {
+  document.getElementById('landPriceContent').innerHTML = `
+    <div style="padding: 30px; color: var(--warn); font-size: 14px;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 8px; display: block; margin: 0 auto 10px;">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      ${msg}
+    </div>
+  `;
+}
+
+// ==========================================
+// 7. 검색 기록 관리
+// ==========================================
+function renderHistory() {
+  if (searchHistory.length === 0) return;
+  const sec = document.getElementById('historySection');
+  sec.style.display = 'block';
+  document.getElementById('historyList').innerHTML = searchHistory.map(h => `
+    <div class="history-item" onclick="document.getElementById('addrInput').value='${h.addr.replace(/'/g,"\\'")}'; searchAddr();">
+      <div style="font-size:16px; flex-shrink:0;">&#x1F4CD;</div>
+      <div class="history-addr">${h.addr}</div>
+      <div class="history-pnu">${h.pnu}</div>
+    </div>
+  `).join('');
+}
+
+// ==========================================
+// 8. Gemini AI 연동 (토지 가치 분석)
+// ==========================================
+async function generateAIReport() {
+  const btn = document.getElementById('aiBtn');
+  const content = document.getElementById('aiContent');
+  
+  btn.disabled = true;
+  btn.innerHTML = `<div class="spinner small" style="border-top-color:#fff;"></div> AI가 데이터를 분석하고 있습니다...`;
+  content.style.display = 'none';
+
+  const prompt = `
+당신은 한국의 부동산 및 토지 개발 전문가입니다. 
+다음은 사용자가 조회한 특정 토지의 공공데이터입니다. 이 데이터를 바탕으로 해당 토지의 가치와 활용 방안을 분석해주세요.
+
+[토지 정보]
+- 주소: ${currentLandData.address}
+- 지목: ${currentLandData.jimok}
+- 면적: ${currentLandData.parea} ㎡
+- 지형 특징: ${currentLandData.terrain}
+- 최근 공시지가 추이: ${currentLandData.prices.join(', ')}
+
+[분석 지침]
+1. 분석은 3가지 주제로 진행해주세요: "1. 토지 기본 특성 분석", "2. 개발 및 활용 잠재력", "3. 종합 투자 의견"
+2. 마크다운 기호(*, # 등)를 절대 사용하지 말고, HTML 태그(<br>, <strong>, <ul>, <li>, <p> 등)만 사용하여 화면에 바로 렌더링 할 수 있도록 가독성 있게 꾸며주세요.
+3. 전문가다운 어조로 명확하고 객관적인 통찰력을 제공해주세요.`;
+
+  try {
+    const text = await callGeminiWithRetry(prompt);
+    content.innerHTML = text;
+    content.style.display = 'block';
+    btn.style.display = 'none';
+  } catch (err) {
+    content.innerHTML = `<span style="color:var(--danger)">AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요. (${err.message})</span>`;
+    content.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = `✨ Gemini AI 토지 가치 분석 리포트 다시 생성`;
+  }
+}
+
+async function callGeminiWithRetry(prompt, retries = 5) {
+  const apiKey = ""; 
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  const delays = [1000, 2000, 4000, 8000, 16000];
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+      return result.candidates?.[0]?.content?.parts?.[0]?.text || "분석 결과를 가져올 수 없습니다.";
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      await new Promise(res => setTimeout(res, delays[i]));
+    }
+  }
+}
+</script>
+</body>
+</html>
